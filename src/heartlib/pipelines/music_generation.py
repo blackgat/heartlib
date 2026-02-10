@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from tqdm import tqdm
 import torchaudio
 import json
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import gc
 
 
@@ -281,7 +281,9 @@ class HeartMuLaGenPipeline:
 
         bs_size = 2 if cfg_scale != 1.0 else 1
         self.mula.setup_caches(bs_size)
-        with torch.autocast(device_type=self.mula_device.type, dtype=self.mula_dtype):
+        # MPS doesn't support autocast, use nullcontext instead
+        autocast_ctx = nullcontext() if self.mula_device.type == 'mps' else torch.autocast(device_type=self.mula_device.type, dtype=self.mula_dtype)
+        with autocast_ctx:
             curr_token = self.mula.generate_frame(
                 tokens=prompt_tokens,
                 tokens_mask=prompt_tokens_mask,
@@ -315,9 +317,9 @@ class HeartMuLaGenPipeline:
 
         for i in tqdm(range(max_audio_frames)):
             curr_token, curr_token_mask = _pad_audio_token(curr_token)
-            with torch.autocast(
-                device_type=self.mula_device.type, dtype=self.mula_dtype
-            ):
+            # MPS doesn't support autocast, use nullcontext instead
+            autocast_ctx = nullcontext() if self.mula_device.type == 'mps' else torch.autocast(device_type=self.mula_device.type, dtype=self.mula_dtype)
+            with autocast_ctx:
                 curr_token = self.mula.generate_frame(
                     tokens=curr_token,
                     tokens_mask=curr_token_mask,
